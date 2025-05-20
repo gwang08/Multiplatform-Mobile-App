@@ -1,7 +1,10 @@
 import { fetchPlayers } from '@/api/Football';
+import { FontAwesome } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import { useEffect, useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const FAVORITES_KEY = 'favoritePlayers';
 
@@ -17,44 +20,100 @@ type Player = {
   PassingAccuracy: number;
 };
 
+
+type PlayerDetailRouteParams = {
+  id: string;
+};
+
+type RootStackParamList = {
+  PlayerDetail: PlayerDetailRouteParams;
+};
+
+type NavigationProp = StackNavigationProp<RootStackParamList, 'PlayerDetail'>;
+
 export default function FavoriteScreen() {
   const [favoritePlayers, setFavoritePlayers] = useState<Player[]>([]);
+  const navigation = useNavigation<NavigationProp>();
+
+  const reloadFavorites = async () => {
+    try {
+      const favorites = await AsyncStorage.getItem(FAVORITES_KEY);
+      if (favorites) {
+        const favoriteIds = JSON.parse(favorites);
+        const allPlayers = await fetchPlayers();
+        const favoriteDetails = allPlayers.filter((player: Player) => favoriteIds.includes(player.id));
+        setFavoritePlayers(favoriteDetails);
+      } else {
+        setFavoritePlayers([]);
+      }
+    } catch (error) {
+      console.error('Error loading favorite players:', error);
+    }
+  };
 
   useEffect(() => {
-    const loadFavorites = async () => {
-      try {
-        const favorites = await AsyncStorage.getItem(FAVORITES_KEY);
-        if (favorites) {
-          const favoriteIds = JSON.parse(favorites);
-          const allPlayers = await fetchPlayers();
-          const favoriteDetails = allPlayers.filter((player: Player) => favoriteIds.includes(player.id));
-          setFavoritePlayers(favoriteDetails);
-        }
-      } catch (error) {
-        console.error('Error loading favorite players:', error);
-      }
-    };
-
-    loadFavorites();
+    reloadFavorites();
   }, []);
 
-  useEffect(() => {
-    const debugFavorites = async () => {
-      try {
-        const favorites = await AsyncStorage.getItem(FAVORITES_KEY);
-        console.log('Current FAVORITES_KEY data:', favorites);
-      } catch (error) {
-        console.error('Error debugging favorite players:', error);
-      }
-    };
+  const removeFavorite = (playerId: string) => {
+    Alert.alert(
+      'Remove Favorite',
+      'Are you sure you want to remove this player from favorites?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const favorites = await AsyncStorage.getItem(FAVORITES_KEY);
+              let favoriteIds = favorites ? JSON.parse(favorites) : [];
+              favoriteIds = favoriteIds.filter((id: string) => id !== playerId);
+              await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(favoriteIds));
+              reloadFavorites();
+            } catch (error) {
+              console.error('Error removing favorite:', error);
+            }
+          },
+        },
+      ]
+    );
+  };
 
-    debugFavorites();
-  }, []);
+  const removeAllFavorites = () => {
+    Alert.alert(
+      'Remove All Favorites',
+      'Are you sure you want to remove all favorite players?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove All',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await AsyncStorage.removeItem(FAVORITES_KEY);
+              reloadFavorites();
+            } catch (error) {
+              console.error('Error removing all favorites:', error);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handlePlayerPress = (playerId: string) => {
+    navigation.navigate('PlayerDetail', { id: playerId });
+  };
 
   return (
     <View>
       <Text style={styles.header}>Favorite Players</Text>
-
+      {favoritePlayers.length > 0 && (
+        <TouchableOpacity style={styles.removeAllButton} onPress={removeAllFavorites}>
+          <Text style={styles.removeAllButtonText}>Remove All</Text>
+        </TouchableOpacity>
+      )}
       <ScrollView>
         {favoritePlayers.map((player, index) => {
           if (!player.id) {
@@ -62,12 +121,19 @@ export default function FavoriteScreen() {
           }
           return (
             <View key={player.id || index} style={styles.playerCard}>
-              <Image source={{ uri: player.image }} style={styles.playerImage} />
+              <TouchableOpacity onPress={() => handlePlayerPress(player.id)}>
+                <Image source={{ uri: player.image }} style={styles.playerImage} />
+              </TouchableOpacity>
               <View style={styles.playerInfo}>
-                <Text style={styles.playerName}>{player.playerName}</Text>
+                <TouchableOpacity onPress={() => handlePlayerPress(player.id)}>
+                  <Text style={styles.playerName}>{player.playerName}</Text>
+                </TouchableOpacity>
                 <Text>Position: {player.position}</Text>
                 <Text>Year of Birth: {player.YoB}</Text>
                 <Text>Captain: {player.isCaptain ? '✔️' : '❌'}</Text>
+                <TouchableOpacity style={styles.removeButton} onPress={() => removeFavorite(player.id)}>
+                  <FontAwesome name="trash" size={20} color="#d11a2a" />
+                </TouchableOpacity>
               </View>
             </View>
           );
@@ -110,5 +176,22 @@ const styles = StyleSheet.create({
   playerName: {
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  removeButton: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    padding: 4,
+  },
+  removeAllButton: {
+    backgroundColor: '#d11a2a',
+    padding: 10,
+    borderRadius: 6,
+    alignSelf: 'center',
+    marginBottom: 10,
+  },
+  removeAllButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });
