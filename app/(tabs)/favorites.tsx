@@ -1,21 +1,18 @@
 import { LoadingComponent } from '@/components/LoadingComponent';
 import { PlayerCard } from '@/components/PlayerCard';
 import { SearchBar } from '@/components/SearchBar';
-import { TeamFilter } from '@/components/TeamFilter';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { playerService } from '@/services/playerService';
+import { favoritesService } from '@/services/favoritesService';
 import { Player } from '@/types/Player';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-export default function HomeScreen() {
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [filteredPlayers, setFilteredPlayers] = useState<Player[]>([]);
-  const [teams, setTeams] = useState<string[]>([]);
-  const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
+export default function FavoritesScreen() {
+  const [favorites, setFavorites] = useState<Player[]>([]);
+  const [filteredFavorites, setFilteredFavorites] = useState<Player[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -24,26 +21,24 @@ export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadFavorites();
+    }, [])
+  );
 
   useEffect(() => {
-    filterPlayers();
-  }, [players, selectedTeam, searchQuery]);
+    filterFavorites();
+  }, [favorites, searchQuery]);
 
-  const loadData = async () => {
+  const loadFavorites = async () => {
     try {
       setLoading(true);
-      const [playersData, teamsData] = await Promise.all([
-        playerService.getAllPlayers(),
-        playerService.getTeams()
-      ]);
-      setPlayers(playersData);
-      setTeams(teamsData);
+      const favoritesData = await favoritesService.getFavorites();
+      setFavorites(favoritesData);
     } catch (error) {
-      Alert.alert('Error', 'Failed to load players data');
-      console.error('Error loading data:', error);
+      Alert.alert('Error', 'Failed to load favorites');
+      console.error('Error loading favorites:', error);
     } finally {
       setLoading(false);
     }
@@ -51,19 +46,13 @@ export default function HomeScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadData();
+    await loadFavorites();
     setRefreshing(false);
   }, []);
 
-  const filterPlayers = () => {
-    let filtered = players;
+  const filterFavorites = () => {
+    let filtered = favorites;
 
-    // Filter by team
-    if (selectedTeam) {
-      filtered = filtered.filter(player => player.team === selectedTeam);
-    }
-
-    // Filter by search query
     if (searchQuery) {
       filtered = filtered.filter(player =>
         player.playerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -72,51 +61,89 @@ export default function HomeScreen() {
       );
     }
 
-    setFilteredPlayers(filtered);
+    setFilteredFavorites(filtered);
   };
 
   const handlePlayerPress = (player: Player) => {
     router.push(`/player/${player.id}`);
   };
 
+  const handleFavoriteToggle = () => {
+    loadFavorites(); // Reload favorites when a player is removed
+  };
+
+  const clearAllFavorites = async () => {
+    Alert.alert(
+      'Clear All Favorites',
+      'Are you sure you want to remove all players from your favorites?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear All',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await favoritesService.clearFavorites();
+              setFavorites([]);
+              Alert.alert('Success', 'All favorites have been cleared');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to clear favorites');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const renderPlayer = ({ item }: { item: Player }) => (
     <PlayerCard
       player={item}
       onPress={() => handlePlayerPress(item)}
-      onFavoriteToggle={() => {}}
+      onFavoriteToggle={handleFavoriteToggle}
     />
   );
 
   const renderEmptyComponent = () => (
     <View style={styles.emptyContainer}>
       <Text style={[styles.emptyText, { color: theme.text }]}>
-        {searchQuery || selectedTeam ? 'No players match your criteria' : 'No players available'}
+        {searchQuery ? 'No favorite players match your search' : 'No favorite players yet'}
       </Text>
+      {!searchQuery && (
+        <Text style={[styles.emptySubtext, { color: theme.icon }]}>
+          Add players to your favorites from the Home screen
+        </Text>
+      )}
     </View>
   );
 
   if (loading) {
-    return <LoadingComponent message="Loading players..." />;
+    return <LoadingComponent message="Loading favorites..." />;
   }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>Football Players</Text>
+        <Text style={[styles.title, { color: theme.text }]}>My Favorites</Text>
+        {favorites.length > 0 && (
+          <Text
+            style={[styles.clearButton, { color: theme.tint }]}
+            onPress={clearAllFavorites}
+          >
+            Clear All
+          </Text>
+        )}
+      </View>
+      
+      {favorites.length > 0 && (
         <SearchBar
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholder="Search players, teams, positions..."
+          placeholder="Search favorite players..."
         />
-        <TeamFilter
-          teams={teams}
-          selectedTeam={selectedTeam}
-          onTeamSelect={setSelectedTeam}
-        />
-      </View>
+      )}
       
       <FlatList
-        data={filteredPlayers}
+        data={filteredFavorites}
         renderItem={renderPlayer}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
@@ -139,13 +166,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    textAlign: 'center',
-    marginVertical: 16,
+  },
+  clearButton: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   listContent: {
     paddingBottom: 100, // Account for tab bar
@@ -155,9 +188,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 40,
+    paddingHorizontal: 20,
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
     textAlign: 'center',
   },
 });
