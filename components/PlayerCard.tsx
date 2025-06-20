@@ -1,4 +1,5 @@
 import { Colors } from '@/constants/Colors';
+import { useAppContext } from '@/context/AppContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { favoritesService } from '@/services/favoritesService';
 import { Player } from '@/types/Player';
@@ -18,25 +19,34 @@ export function PlayerCard({ player, onPress, onFavoriteToggle }: PlayerCardProp
   const [isFavorite, setIsFavorite] = useState(false);
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
-
+  const { state, dispatch } = useAppContext();
   useEffect(() => {
     checkFavoriteStatus();
-  }, [player.id]);
+  }, [player.id, state.favorites]);
 
   const checkFavoriteStatus = async () => {
-    const favoriteStatus = await favoritesService.isFavorite(player.id);
-    setIsFavorite(favoriteStatus);
+    // Check from context first, then fallback to AsyncStorage
+    const isInContext = state.favorites.some(fav => fav.id === player.id);
+    if (isInContext) {
+      setIsFavorite(true);
+    } else {
+      const favoriteStatus = await favoritesService.isFavorite(player.id);
+      setIsFavorite(favoriteStatus);
+    }
   };
-
   const toggleFavorite = async () => {
     try {
       if (isFavorite) {
         await favoritesService.removeFromFavorites(player.id);
         setIsFavorite(false);
+        // Update context
+        dispatch({ type: 'REMOVE_FAVORITE', payload: player.id });
         Alert.alert('Removed', `${player.playerName} removed from favorites`);
       } else {
         await favoritesService.addToFavorites(player);
         setIsFavorite(true);
+        // Update context
+        dispatch({ type: 'ADD_FAVORITE', payload: player });
         Alert.alert('Added', `${player.playerName} added to favorites`);
       }
       onFavoriteToggle?.();

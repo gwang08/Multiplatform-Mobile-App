@@ -1,25 +1,33 @@
-import { LoadingComponent } from '@/components/LoadingComponent';
-import { PlayerCard } from '@/components/PlayerCard';
-import { SearchBar } from '@/components/SearchBar';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
-import { favoritesService } from '@/services/favoritesService';
-import { Player } from '@/types/Player';
-import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { LoadingComponent } from "@/components/LoadingComponent";
+import { PlayerCard } from "@/components/PlayerCard";
+import { SearchBar } from "@/components/SearchBar";
+import { Colors } from "@/constants/Colors";
+import { useAppContext } from "@/context/AppContext";
+import { useColorScheme } from "@/hooks/useColorScheme";
+import { favoritesService } from "@/services/favoritesService";
+import { Player } from "@/types/Player";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  Alert,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function FavoritesScreen() {
-  const [favorites, setFavorites] = useState<Player[]>([]);
   const [filteredFavorites, setFilteredFavorites] = useState<Player[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  
+
+  const { state, dispatch } = useAppContext();
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
+  const theme = Colors[colorScheme ?? "light"];
 
   useFocusEffect(
     useCallback(() => {
@@ -29,16 +37,15 @@ export default function FavoritesScreen() {
 
   useEffect(() => {
     filterFavorites();
-  }, [favorites, searchQuery]);
-
+  }, [state.favorites, searchQuery]);
   const loadFavorites = async () => {
     try {
       setLoading(true);
       const favoritesData = await favoritesService.getFavorites();
-      setFavorites(favoritesData);
+      dispatch({ type: "SET_FAVORITES", payload: favoritesData });
     } catch (error) {
-      Alert.alert('Error', 'Failed to load favorites');
-      console.error('Error loading favorites:', error);
+      Alert.alert("Error", "Failed to load favorites");
+      console.error("Error loading favorites:", error);
     } finally {
       setLoading(false);
     }
@@ -49,15 +56,15 @@ export default function FavoritesScreen() {
     await loadFavorites();
     setRefreshing(false);
   }, []);
-
   const filterFavorites = () => {
-    let filtered = favorites;
+    let filtered = state.favorites;
 
     if (searchQuery) {
-      filtered = filtered.filter(player =>
-        player.playerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        player.team.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        player.position.toLowerCase().includes(searchQuery.toLowerCase())
+      filtered = filtered.filter(
+        (player: Player) =>
+          player.playerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          player.team.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          player.position.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
@@ -74,23 +81,23 @@ export default function FavoritesScreen() {
 
   const clearAllFavorites = async () => {
     Alert.alert(
-      'Clear All Favorites',
-      'Are you sure you want to remove all players from your favorites?',
+      "Clear All Favorites",
+      "Are you sure you want to remove all players from your favorites?",
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Clear All',
-          style: 'destructive',
+          text: "Clear All",
+          style: "destructive",
           onPress: async () => {
             try {
               await favoritesService.clearFavorites();
-              setFavorites([]);
-              Alert.alert('Success', 'All favorites have been cleared');
+              dispatch({ type: "CLEAR_FAVORITES" });
+              Alert.alert("Success", "All favorites have been cleared");
             } catch (error) {
-              Alert.alert('Error', 'Failed to clear favorites');
+              Alert.alert("Error", "Failed to clear favorites");
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -106,7 +113,9 @@ export default function FavoritesScreen() {
   const renderEmptyComponent = () => (
     <View style={styles.emptyContainer}>
       <Text style={[styles.emptyText, { color: theme.text }]}>
-        {searchQuery ? 'No favorite players match your search' : 'No favorite players yet'}
+        {searchQuery
+          ? "No favorite players match your search"
+          : "No favorite players yet"}
       </Text>
       {!searchQuery && (
         <Text style={[styles.emptySubtext, { color: theme.icon }]}>
@@ -119,12 +128,13 @@ export default function FavoritesScreen() {
   if (loading) {
     return <LoadingComponent message="Loading favorites..." />;
   }
-
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+    >
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>My Favorites</Text>
-        {favorites.length > 0 && (
+        {state.favorites.length > 0 && (
           <Text
             style={[styles.clearButton, { color: theme.tint }]}
             onPress={clearAllFavorites}
@@ -133,15 +143,13 @@ export default function FavoritesScreen() {
           </Text>
         )}
       </View>
-      
-      {favorites.length > 0 && (
+      {state.favorites.length > 0 && (
         <SearchBar
           value={searchQuery}
           onChangeText={setSearchQuery}
           placeholder="Search favorite players..."
         />
       )}
-      
       <FlatList
         data={filteredFavorites}
         renderItem={renderPlayer}
@@ -166,38 +174,38 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   clearButton: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   listContent: {
     paddingBottom: 100, // Account for tab bar
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingVertical: 40,
     paddingHorizontal: 20,
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: "600",
+    textAlign: "center",
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    textAlign: 'center',
+    textAlign: "center",
   },
 });

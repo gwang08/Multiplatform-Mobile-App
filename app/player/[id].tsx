@@ -1,15 +1,16 @@
 import { LoadingComponent } from '@/components/LoadingComponent';
 import { Colors } from '@/constants/Colors';
+import { useAppContext } from '@/context/AppContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { favoritesService } from '@/services/favoritesService';
 import { playerService } from '@/services/playerService';
 import { Feedback, Player } from '@/types/Player';
 import {
-    calculateAge,
-    formatMinutesToHours,
-    formatPassingAccuracy,
-    getRatingStars,
-    groupFeedbacksByRating
+  calculateAge,
+  formatMinutesToHours,
+  formatPassingAccuracy,
+  getRatingStars,
+  groupFeedbacksByRating
 } from '@/utils/helpers';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -24,10 +25,10 @@ export default function PlayerDetailScreen() {
   const [isFavorite, setIsFavorite] = useState(false);
   const [loading, setLoading] = useState(true);
   const [expandedRating, setExpandedRating] = useState<number | null>(null);
-  
-  const router = useRouter();
+    const router = useRouter();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
+  const { state, dispatch } = useAppContext();
 
   useEffect(() => {
     if (id) {
@@ -57,7 +58,6 @@ export default function PlayerDetailScreen() {
       setLoading(false);
     }
   };
-
   const toggleFavorite = async () => {
     if (!player) return;
 
@@ -65,10 +65,14 @@ export default function PlayerDetailScreen() {
       if (isFavorite) {
         await favoritesService.removeFromFavorites(player.id);
         setIsFavorite(false);
+        // Update context
+        dispatch({ type: 'REMOVE_FAVORITE', payload: player.id });
         Alert.alert('Removed', `${player.playerName} removed from favorites`);
       } else {
         await favoritesService.addToFavorites(player);
         setIsFavorite(true);
+        // Update context
+        dispatch({ type: 'ADD_FAVORITE', payload: player });
         Alert.alert('Added', `${player.playerName} added to favorites`);
       }
     } catch (error) {
