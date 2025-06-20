@@ -15,14 +15,19 @@ export function TeamFilter({
   onTeamSelect,
 }: TeamFilterProps) {
   const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? "light"];  // Ensure teams is always an array
+  const theme = Colors[colorScheme ?? "light"];
+
+  // Ensure teams is always an array
   const safeTeams = Array.isArray(teams)
-    ? teams.filter((team) => team && typeof team === "string" && team.trim() !== "")
+    ? teams.filter(
+        (team) => team && typeof team === "string" && team.trim() !== ""
+      )
     : [];
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.title, { color: theme.text }]}>Filter by Team</Text>      <ScrollView
+      <Text style={[styles.title, { color: theme.text }]}>Filter by Team</Text>
+      <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -48,9 +53,11 @@ export function TeamFilter({
               },
             ]}
           >
+            {" "}
             All Teams
           </Text>
-        </Pressable>        {safeTeams.map((team) => {
+        </Pressable>
+        {safeTeams.map((team) => {
           const teamStr = String(team);
           return (
             <Pressable

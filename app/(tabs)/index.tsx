@@ -141,13 +141,14 @@ export default function HomeScreen() {
           onChangeText={setSearchQuery}
           placeholder="Search players, teams, positions..."
         />
+        
         <TeamFilter
           teams={teams}
           selectedTeam={selectedTeam}
           onTeamSelect={setSelectedTeam}
         />
       </View>
-
+    
       <FlatList
         data={filteredPlayers}
         renderItem={renderPlayer}
